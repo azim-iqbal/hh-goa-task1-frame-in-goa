@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0B6839" />
+    <title>Frame in Goa — HH Goa 2026</title>
+    <meta name="description" content="Make your HH Goa 2026 builder card or profile frame." />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <nav class="topbar"><a class="wordmark" href="#top" aria-label="HH Goa home">HH GOA <span>///</span> 2026</a><p>HACKER HOUSE · GOA, IN</p><button class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode"><span class="toggle-sun">☼</span><span class="toggle-knob"></span><span class="toggle-moon">◐</span></button></nav>
+
+      <section class="hero" id="top">
+        <div class="sun"></div><img class="goa-mark" src="assets/goa-hindi.svg" alt="Goa" /><div class="scribble scribble-one">✦</div><div class="scribble scribble-two">✳</div>
+        <p class="eyebrow">THE INTERNET IS BETTER IN GOA</p>
+        <h1>FRAME<br><i>IN</i> GOA</h1>
+        <p class="hero-copy">Turn your face into a signal.<br />Make your HH Goa 2026 graphic in one pass.</p>
+        <div class="ticker"><span>BUILD · SWIM · SHIP · DANCE · BUILD · SWIM · SHIP · DANCE · </span></div>
+      </section>
+
+      <section class="maker" aria-labelledby="maker-title">
+        <div class="section-intro"><p class="eyebrow">YOUR DIGITAL WRISTBAND</p><h2 id="maker-title">MAKE IT<br />YOURS.</h2><p>Drop a photo, choose your flavour, and leave with something post-worthy.</p></div>
+        <div class="studio">
+          <div class="format-switch" role="tablist" aria-label="Choose graphic type">
+            <button class="format active" data-format="card" role="tab" aria-selected="true"><b>01</b> BUILDER ID</button>
+            <button class="format" data-format="frame" role="tab" aria-selected="false"><b>02</b> PFP FRAME</button>
+          </div>
+
+          <div class="studio-grid">
+            <form class="controls" id="generator-form">
+              <div class="media-buttons"><label class="upload-zone" id="drop-zone" for="photo-input">
+                <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" />
+                <span class="upload-icon">+</span><strong id="upload-label">UPLOAD A PHOTO</strong><small>JPG, PNG, WEBP or HEIC</small>
+              </label><button class="camera-trigger" id="camera-trigger" type="button"><span>◉</span><strong>TAKE PHOTO</strong><small>USE CAMERA</small></button></div>
+              <div class="field card-only"><label for="name-input">YOUR NAME</label><input id="name-input" maxlength="30" placeholder="e.g. Aanya Rao" /></div>
+              <div class="field card-only"><label for="role-input">YOUR STACK / ROLE</label><input id="role-input" maxlength="34" placeholder="e.g. designer · full stack" /></div>
+              <div class="field card-only"><label for="title-input">BUILDER TITLE</label><select id="title-input"><option>Chief Vibes Engineer</option><option>Beachside Bug Hunter</option><option>Protocol Poet</option><option>Full Moon Shipper</option><option>Serotonin Stack Architect</option></select></div>
+              <div class="card-picker card-only"><div class="picker-heading"><label>COMPOSE YOUR BUILDER ID</label><span>3 HOUSE MOODS</span></div><div class="card-options" role="radiogroup" aria-label="Choose Builder ID theme"><button class="card-option active" data-card="grove" type="button" role="radio" aria-checked="true"><i class="card-swatch grove"></i><b>GROVE</b></button><button class="card-option" data-card="dusk" type="button" role="radio" aria-checked="false"><i class="card-swatch dusk"></i><b>DUSK</b></button><button class="card-option" data-card="salt" type="button" role="radio" aria-checked="false"><i class="card-swatch salt"></i><b>SALT AIR</b></button></div></div>
+              <div class="frame-picker frame-only" style="display:none"><div class="picker-heading"><label>COMPOSE YOUR FRAME</label><span>PHOTO-LED, NOT TEXT-LED</span></div><div class="orientation-toggle" role="radiogroup" aria-label="Choose photo direction"><button class="orientation-option active" data-orientation="portrait" type="button" role="radio" aria-checked="true"><i></i> PORTRAIT</button><button class="orientation-option" data-orientation="landscape" type="button" role="radio" aria-checked="false"><i></i> LANDSCAPE</button></div><div class="frame-options" role="radiogroup" aria-label="Choose PFP frame style"><button class="frame-option active" data-orientation="portrait" data-frame="arch" type="button" role="radio" aria-checked="true"><i class="swatch arch"></i><b>ARCH</b></button><button class="frame-option" data-orientation="portrait" data-frame="halo" type="button" role="radio" aria-checked="false"><i class="swatch halo"></i><b>HALO</b></button><button class="frame-option" data-orientation="portrait" data-frame="veranda" type="button" role="radio" aria-checked="false"><i class="swatch veranda"></i><b>VERANDA</b></button><button class="frame-option landscape-choice" data-orientation="landscape" data-frame="horizon" type="button" role="radio" aria-checked="false"><i class="swatch horizon"></i><b>HORIZON</b></button><button class="frame-option landscape-choice" data-orientation="landscape" data-frame="coastline" type="button" role="radio" aria-checked="false"><i class="swatch coastline"></i><b>COASTLINE</b></button><button class="frame-option landscape-choice" data-orientation="landscape" data-frame="tile" type="button" role="radio" aria-checked="false"><i class="swatch tile"></i><b>TILE</b></button></div></div>
+              <div class="crop-controls"><div class="field crop-field"><label for="zoom-input">PHOTO SCALE <span id="zoom-value">100%</span></label><input id="zoom-input" type="range" min="45" max="220" value="100" /></div><p class="crop-hint">Zoom out for close portraits — we’ll softly extend the image behind it.</p><div class="field crop-field"><label for="x-input">MOVE LEFT / RIGHT</label><input id="x-input" type="range" min="-100" max="100" value="0" /></div><div class="field crop-field"><label for="y-input">MOVE UP / DOWN</label><input id="y-input" type="range" min="-100" max="100" value="0" /></div></div>
+              <button class="generate" type="submit"><span>GENERATE MY GRAPHIC</span><b>↗</b></button>
+              <p class="microcopy">One photo in. One hacker-house artefact out. Ship it.</p>
+            </form>
+
+            <div class="preview-wrap"><div class="preview-label"><span>LIVE PREVIEW</span><span id="output-size">1080 × 1350</span></div><canvas id="preview-canvas" width="1080" height="1350" aria-label="Your generated HH Goa graphic preview"></canvas><div class="actions"><button id="download-btn" class="action dark" type="button" disabled>↓ DOWNLOAD PNG</button><button id="share-btn" class="action pink" type="button" disabled>𝕏 SHARE TO X</button></div><p class="share-note" id="share-note">Upload a photo to unlock the goods.</p></div>
+          </div>
+        </div>
+      </section>
+      <footer><span>HH GOA</span><span>HACKER HOUSE 2026</span><span>#FRAMEINGOA</span></footer>
+    </main>
+    <section class="camera-modal" id="camera-modal" aria-hidden="true" role="dialog" aria-label="Take your HH Goa photo">
+      <div class="camera-card"><div class="camera-top"><span>HH GOA / LIVE PORTRAIT</span><button id="camera-close" type="button" aria-label="Close camera">×</button></div><div class="camera-stage"><video id="camera-video" autoplay playsinline muted></video><div class="camera-frame"><span></span><span></span><span></span><span></span></div><p>LOOK INTO THE SUN ☼</p></div><div class="camera-bottom"><button id="camera-cancel" type="button" class="camera-secondary">CANCEL</button><button id="capture-btn" type="button" class="capture-btn" aria-label="Capture photo"><i></i></button><span class="camera-hint">TAP TO CAPTURE</span></div></div>
+    </section>
+    <script src="app.js"></script>
+  </body>
+</html>
