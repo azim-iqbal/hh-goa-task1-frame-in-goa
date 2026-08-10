@@ -2,7 +2,8 @@ const $ = (id) => document.getElementById(id);
 const canvas = $('preview-canvas');
 const ctx = canvas.getContext('2d');
 const photoInput = $('photo-input');
-const form = $('generator-form');
+const form = document.getElementById("generator-form");
+const cropDrawer = document.getElementById("crop-drawer");
 
 let photo = null;
 let format = 'card';
@@ -292,6 +293,17 @@ function setFormat(next) {
     draw();
 }
 
+function setCropAvailability(available) {
+    cropDrawer.classList.toggle('is-disabled', !available);
+    cropDrawer.classList.toggle('is-ready', available);
+    cropDrawer.setAttribute('aria-disabled', String(!available));
+    if (!available) cropDrawer.open = false;
+}
+
+cropDrawer.querySelector('summary').addEventListener('click', event => {
+    if (!photo) event.preventDefault();
+});
+
 function setPhoto(source) {
     const img = new Image();
     img.onload = () => {
@@ -299,6 +311,7 @@ function setPhoto(source) {
         $('upload-label').textContent = 'PHOTO READY ☼';
         $('drop-zone').classList.add('loaded');
         document.getElementById('remove-image').hidden = false;
+        setCropAvailability(true);
         draw();
         $('share-note').textContent = 'Photo loaded — position it exactly how you want.';
         $('share-note').classList.remove('error');
@@ -658,7 +671,7 @@ canvas.addEventListener("pointerup", stopDragging); canvas.addEventListener("poi
 document.getElementById('crop-reset').addEventListener('click',()=>{ cropState[format]={scale:100,x:0,y:0}; syncCropInputs(); draw(); });
 document.querySelectorAll("[data-nudge]").forEach(button=>button.addEventListener("click",()=>{ const c=activeCrop(), step=8; if(button.dataset.nudge==="left") c.x-=step; if(button.dataset.nudge==="right") c.x+=step; if(button.dataset.nudge==="up") c.y-=step; if(button.dataset.nudge==="down") c.y+=step; c.x=clampCrop(c.x); c.y=clampCrop(c.y); syncCropInputs(); draw(); }));
 
-document.getElementById("remove-image").addEventListener("click",()=>{ photo=null; photoInput.value=""; cropState.card={scale:100,x:0,y:0}; cropState.frame={scale:100,x:0,y:0}; syncCropInputs(); document.getElementById("upload-label").textContent="UPLOAD A PHOTO"; document.getElementById("drop-zone").classList.remove("loaded"); document.getElementById("remove-image").hidden=true; document.getElementById("download-btn").disabled=true; document.getElementById("share-btn").disabled=true; document.getElementById("download-btn").classList.remove("is-ready"); document.getElementById("share-btn").classList.remove("is-ready"); document.getElementById("share-note").textContent="Image removed. Start again when you are ready."; draw(); });
+document.getElementById("remove-image").addEventListener("click",()=>{ photo=null; photoInput.value=""; cropState.card={scale:100,x:0,y:0}; cropState.frame={scale:100,x:0,y:0}; syncCropInputs(); document.getElementById("upload-label").textContent="UPLOAD A PHOTO"; document.getElementById("drop-zone").classList.remove("loaded"); document.getElementById("remove-image").hidden=true; setCropAvailability(false); document.getElementById("download-btn").disabled=true; document.getElementById("share-btn").disabled=true; document.getElementById("download-btn").classList.remove("is-ready"); document.getElementById("share-btn").classList.remove("is-ready"); document.getElementById("share-note").textContent="Image removed. Start again when you are ready."; draw(); });
 
 let lastHapticAt = 0;
 document.querySelectorAll('input[type="range"]').forEach(slider => slider.addEventListener('input', () => {
