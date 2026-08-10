@@ -7,9 +7,26 @@ const form = $('generator-form');
 let photo = null;
 let format = 'card';
 let cameraStream = null;
+let cameraOpening = false;
+let cameraFailures = 0;
+let cameraBreakerUntil = 0;
+let cameraFacing = 'user';
+let faceLandmarker = null;
+let faceState = 'idle';
+let faceReady = false;
+let faceFrame = null;
+let faceLoadPromise = null;
+let faceCircuitUntil = 0;
+const FACE_VISION_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm';
+const FACE_WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
+const FACE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task';
+let lastBlinkAt = 0;
+let lastFaceWidth = 0;
+let lastFaceHeight = 0;
+let cameraSession = 0;
 let frameStyle = 'arch';
 let orientation = 'portrait';
-let cardTheme = 'grove';
+let cardTheme = 'dusk';
 
 const cropState = {
     card: { scale: 100, x: 0, y: 0 },
@@ -162,7 +179,7 @@ function drawCard() {
 
     const nameSize = fitText(name, 910, 102, 'Imbue');
     text(name, 70, 1035, nameSize, { family: 'Imbue', color: colors.cream });
-    text('THEY / THEM / LET THEM COOK', 70, 1088, 17, { color: p.line });
+    text('GOA FIELD NOTE · HACKER HOUSE 2026', 70, 1088, 17, { color: p.line });
 
     ctx.fillStyle = colors.cream;
     ctx.fillRect(70, 1135, 940, 2);
@@ -281,6 +298,7 @@ function setPhoto(source) {
         photo = img;
         $('upload-label').textContent = 'PHOTO READY ☼';
         $('drop-zone').classList.add('loaded');
+        document.getElementById('remove-image').hidden = false;
         draw();
         $('share-note').textContent = 'Photo loaded — position it exactly how you want.';
         $('share-note').classList.remove('error');
@@ -315,51 +333,199 @@ function blob() {
     return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
 }
 
+function setFaceStatus(message, ready = false) {
+    const status = document.getElementById('camera-status');
+    status.textContent = message;
+    status.classList.toggle('is-ready', ready);
+    document.getElementById('capture-btn').disabled = !ready;
+    document.querySelector('.camera-frame').classList.toggle('face-ready', ready);
+}
+
+function loadWithTimeout(promise, ms) {
+    return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('FACE_LOAD_TIMEOUT')), ms))]);
+}
+
+async function ensureFaceDetector() {
+    if (faceState === 'ready') return true;
+    if (Date.now() < faceCircuitUntil) return false;
+    if (faceLoadPromise) return faceLoadPromise;
+    faceState = 'loading';
+    setFaceStatus('PREPARING LIVE FACE CHECK…');
+    faceLoadPromise = loadWithTimeout((async () => {
+        const { FaceLandmarker, FilesetResolver } = await import(FACE_VISION_URL);
+        const vision = await FilesetResolver.forVisionTasks(FACE_WASM_URL);
+        faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: FACE_MODEL_URL },
+            runningMode: 'VIDEO',
+            numFaces: 1,
+            minFaceDetectionConfidence: 0.5,
+            minFacePresenceConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+            outputFaceBlendshapes: true
+        });
+        faceState = 'ready';
+        return true;
+    })(), 9000).catch(() => {
+        faceState = 'unavailable';
+        faceCircuitUntil = Date.now() + 30000;
+        return false;
+    }).finally(() => { faceLoadPromise = null; });
+    return faceLoadPromise;
+}
+
+function blendshapeScore(blendshapes, name) {
+    const category = blendshapes?.[0]?.categories?.find(item => item.categoryName === name);
+    return category?.score || 0;
+}
+
+function stopFaceMonitor() {
+    if (faceFrame) cancelAnimationFrame(faceFrame);
+    faceFrame = null;
+    faceReady = false;
+}
+
+function startFaceMonitor() {
+    stopFaceMonitor();
+    const video = document.getElementById('camera-video');
+    let lastCheck = 0;
+    const tick = now => {
+        if (!cameraStream || video.readyState < 2) {
+            faceFrame = requestAnimationFrame(tick);
+            return;
+        }
+        if (faceState === 'ready' && now - lastCheck > 140) {
+            lastCheck = now;
+            try {
+                const result = faceLandmarker.detectForVideo(video, now);
+                const landmarks = result.faceLandmarks?.[0];
+                if (!landmarks?.length) {
+                    faceReady = false;
+                    setFaceStatus('NO HUMAN FACE DETECTED · CENTER YOUR FACE');
+                } else {
+                    const xs = landmarks.map(point => point.x);
+                    const ys = landmarks.map(point => point.y);
+                    const minX = Math.min(...xs), maxX = Math.max(...xs);
+                    const minY = Math.min(...ys), maxY = Math.max(...ys);
+                    const width = maxX - minX, height = maxY - minY;
+                    const centered = width > .18 && height > .18 && (minX + maxX) / 2 > .2 && (minX + maxX) / 2 < .8 && (minY + maxY) / 2 > .18 && (minY + maxY) / 2 < .82;
+                    const distanceOk = width < .62 && height < .68;
+                    const geometryChanged = lastFaceWidth && (Math.abs(width - lastFaceWidth) > .12 || Math.abs(height - lastFaceHeight) > .12);
+                    if (geometryChanged || !distanceOk) lastBlinkAt = 0;
+                    lastFaceWidth = width;
+                    lastFaceHeight = height;
+                    const blink = Math.max(blendshapeScore(result.faceBlendshapes, 'eyeBlinkLeft'), blendshapeScore(result.faceBlendshapes, 'eyeBlinkRight'));
+                    if (blink > .32) lastBlinkAt = now;
+                    const live = now - lastBlinkAt < 4500;
+                    faceReady = centered && distanceOk && live;
+                    if (!centered) setFaceStatus('FACE FOUND · MOVE INTO THE FRAME');
+                    else if (!distanceOk) setFaceStatus('FACE FOUND · STEP BACK A LITTLE');
+                    else if (!live) setFaceStatus('FACE FOUND · BLINK ONCE TO VERIFY');
+                    else setFaceStatus('LIVE FACE VERIFIED · READY TO CAPTURE', true);
+                }
+            } catch {
+                faceState = 'unavailable';
+                setFaceStatus('FACE ASSIST PAUSED · CAPTURE ENABLED', true);
+            }
+        } else if (faceState === 'unavailable') {
+            setFaceStatus('FACE ASSIST UNAVAILABLE · CAPTURE ENABLED', true);
+        }
+        faceFrame = requestAnimationFrame(tick);
+    };
+    faceFrame = requestAnimationFrame(tick);
+}
+
 function stopCamera() {
+    cameraSession += 1;
+    stopFaceMonitor();
     if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
         cameraStream = null;
     }
-    $('camera-video').srcObject = null;
-    $('camera-modal').classList.remove('open');
-    $('camera-modal').setAttribute('aria-hidden', 'true');
+    document.getElementById('camera-video').srcObject = null;
+    document.getElementById('camera-modal').classList.remove('open');
+    document.getElementById('camera-modal').setAttribute('aria-hidden', 'true');
+    setFaceStatus('FINDING YOUR FACE…');
 }
 
 async function openCamera() {
+    if (cameraOpening) return;
+    if (Date.now() < cameraBreakerUntil) {
+        showError('Camera is temporarily paused after repeated failures. Upload a photo or try again shortly.');
+        return;
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
         showError('Camera access needs a secure browser. Try uploading a photo instead.');
         return;
     }
+    cameraOpening = true;
+    const session = ++cameraSession;
+    const trigger = document.getElementById('camera-trigger');
+    trigger.disabled = true;
+    setFaceStatus('OPENING CAMERA…');
     try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'user' }, width: { ideal: 1080 }, height: { ideal: 1080 } },
+        const request = navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: cameraFacing }, width: { ideal: 1080 }, height: { ideal: 1080 } },
             audio: false
         });
-        $('camera-video').srcObject = cameraStream;
-        $('camera-modal').classList.add('open');
-        $('camera-modal').setAttribute('aria-hidden', 'false');
+        request.then(stream => { if (session !== cameraSession) stream.getTracks().forEach(track => track.stop()); }).catch(() => {});
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('CAMERA_TIMEOUT')), 8000));
+        const stream = await Promise.race([request, timeout]);
+        if (session !== cameraSession) { stream.getTracks().forEach(track => track.stop()); return; }
+        cameraStream = stream;
+        cameraFailures = 0;
+        cameraBreakerUntil = 0;
+        const video = document.getElementById('camera-video');
+        video.srcObject = cameraStream;
+        document.getElementById('camera-modal').classList.add('open');
+        document.getElementById('camera-modal').setAttribute('aria-hidden', 'false');
+        lastBlinkAt = 0;
+        lastFaceWidth = 0;
+        lastFaceHeight = 0;
+        startFaceMonitor();
+        ensureFaceDetector().then(assisted => {
+            if (session !== cameraSession || !cameraStream) return;
+            if (!assisted) setFaceStatus('FACE ASSIST UNAVAILABLE · CAPTURE ENABLED', true);
+        });
     } catch (err) {
-        showError(
-            err.name === 'NotAllowedError'
+        cameraSession += 1;
+        cameraFailures += 1;
+        if (cameraFailures >= 2) cameraBreakerUntil = Date.now() + 30000;
+        showError(err.message === 'CAMERA_TIMEOUT'
+            ? 'Camera is taking too long. Try again or upload a photo instead.'
+            : err.name === 'NotAllowedError'
                 ? 'Camera permission was declined. You can still upload a photo.'
-                : 'Could not open the camera — try uploading a photo.'
-        );
+                : 'Could not open the camera — try uploading a photo.');
+    } finally {
+        cameraOpening = false;
+        trigger.disabled = false;
     }
 }
 
-function capturePhoto() {
-    const video = $('camera-video');
-    if (!video.videoWidth) return;
+async function switchCamera() {
+    if (cameraOpening) return;
+    cameraFacing = cameraFacing === 'user' ? 'environment' : 'user';
+    if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+    stopFaceMonitor();
+    await openCamera();
+}
 
+function capturePhoto() {
+    const video = document.getElementById('camera-video');
+    if (!video.videoWidth) return;
+    if (faceState === 'ready' && !faceReady) {
+        setFaceStatus('NO HUMAN FACE DETECTED · ALIGN TO CAPTURE');
+        return;
+    }
     const snap = document.createElement('canvas');
     snap.width = video.videoWidth;
     snap.height = video.videoHeight;
-
     const snapCtx = snap.getContext('2d');
-    snapCtx.translate(snap.width, 0);
-    snapCtx.scale(-1, 1);
+    if (cameraFacing === 'user') {
+        snapCtx.translate(snap.width, 0);
+        snapCtx.scale(-1, 1);
+    }
     snapCtx.drawImage(video, 0, 0, snap.width, snap.height);
-
     setPhoto(snap.toDataURL('image/jpeg', .94));
     stopCamera();
 }
@@ -429,17 +595,8 @@ $('camera-trigger').addEventListener('click', openCamera);
 $('camera-close').addEventListener('click', stopCamera);
 $('camera-cancel').addEventListener('click', stopCamera);
 $('capture-btn').addEventListener('click', capturePhoto);
+$('camera-flip').addEventListener('click', switchCamera);
 
-$('theme-toggle').addEventListener('click', () => {
-    const light = document.documentElement.dataset.theme === 'light';
-    if (light) {
-        delete document.documentElement.dataset.theme;
-        $('theme-toggle').setAttribute('aria-label', 'Switch to light mode');
-    } else {
-        document.documentElement.dataset.theme = 'light';
-        $('theme-toggle').setAttribute('aria-label', 'Switch to dark mode');
-    }
-});
 
 form.addEventListener('submit', e => {
     e.preventDefault();
@@ -448,9 +605,15 @@ form.addEventListener('submit', e => {
         $('share-note').textContent = 'First, drop in a photo or take one ☼';
         return;
     }
+    if (format === 'card' && (!$('name-input').value.trim() || !$('role-input').value.trim())) {
+        showError('Add your name and stack before making your Builder ID.');
+        return;
+    }
     draw();
     $('download-btn').disabled = false;
     $('share-btn').disabled = false;
+    $('download-btn').classList.add('is-ready');
+    $('share-btn').classList.add('is-ready');
     $('share-note').textContent = 'Ready to make your timeline tropical.';
     $('share-note').classList.remove('error');
 });
@@ -485,3 +648,28 @@ document.fonts.ready.then(() => {
     setOrientation('portrait');
     draw();
 });
+const cropStage = document.getElementById('crop-stage');
+let dragPoint = null;
+function clampCrop(value){ return Math.max(-100, Math.min(100, value)); }
+canvas.addEventListener("pointerdown", event => { if(!photo) return; dragPoint = {x:event.clientX,y:event.clientY}; canvas.setPointerCapture(event.pointerId); cropStage.classList.add("is-dragging"); });
+canvas.addEventListener("pointermove", event => { if(!dragPoint) return; const c=activeCrop(); c.x=clampCrop(c.x+(event.clientX-dragPoint.x)/1.7); c.y=clampCrop(c.y+(event.clientY-dragPoint.y)/1.7); dragPoint={x:event.clientX,y:event.clientY}; syncCropInputs(); draw(); });
+function stopDragging(){ dragPoint=null; cropStage.classList.remove("is-dragging"); }
+canvas.addEventListener("pointerup", stopDragging); canvas.addEventListener("pointercancel", stopDragging);
+document.getElementById('crop-reset').addEventListener('click',()=>{ cropState[format]={scale:100,x:0,y:0}; syncCropInputs(); draw(); });
+document.querySelectorAll("[data-nudge]").forEach(button=>button.addEventListener("click",()=>{ const c=activeCrop(), step=8; if(button.dataset.nudge==="left") c.x-=step; if(button.dataset.nudge==="right") c.x+=step; if(button.dataset.nudge==="up") c.y-=step; if(button.dataset.nudge==="down") c.y+=step; c.x=clampCrop(c.x); c.y=clampCrop(c.y); syncCropInputs(); draw(); }));
+
+document.getElementById("remove-image").addEventListener("click",()=>{ photo=null; photoInput.value=""; cropState.card={scale:100,x:0,y:0}; cropState.frame={scale:100,x:0,y:0}; syncCropInputs(); document.getElementById("upload-label").textContent="UPLOAD A PHOTO"; document.getElementById("drop-zone").classList.remove("loaded"); document.getElementById("remove-image").hidden=true; document.getElementById("download-btn").disabled=true; document.getElementById("share-btn").disabled=true; document.getElementById("download-btn").classList.remove("is-ready"); document.getElementById("share-btn").classList.remove("is-ready"); document.getElementById("share-note").textContent="Image removed. Start again when you are ready."; draw(); });
+
+let lastHapticAt = 0;
+document.querySelectorAll('input[type="range"]').forEach(slider => slider.addEventListener('input', () => {
+    const now = Date.now();
+    if (now - lastHapticAt > 65 && navigator.vibrate) { navigator.vibrate(7); lastHapticAt = now; }
+}));
+
+
+const heroSeal = document.querySelector(".sun");
+if (heroSeal) {
+  heroSeal.addEventListener("click", event => {
+    if (!window.matchMedia("(max-width: 720px)").matches) event.preventDefault();
+  });
+}
