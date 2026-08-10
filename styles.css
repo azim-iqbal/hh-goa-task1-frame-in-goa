@@ -1470,3 +1470,4 @@ input[type="range"]::-moz-range-thumb {
   background: linear-gradient(135deg, rgba(255, 255, 255, .82), rgba(229, 235, 216, .54));
   border-color: rgba(18, 53, 34, .18);
 }
+:root{--headline-leading:.86}.hero h1{line-height:var(--headline-leading);max-width:930px}.section-intro h2{line-height:.88;letter-spacing:-.035em}.hero-copy{margin-top:42px}.section-intro>p:last-child{margin-top:31px}
