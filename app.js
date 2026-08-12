@@ -302,6 +302,7 @@ function drawFrame() {
         const offset = portrait ? 145 + i * 240 : 150 + i * 330;
         line(portrait ? 95 : offset, portrait ? H - 82 : 998, portrait ? 145 : offset + 105, portrait ? H - 82 : 998, 7);
     }
+    text('#FRAMEINGOA', W / 2, H - 28, 18, { color: colors.cream, align: 'center' });
     ctx.restore();
 }
 
