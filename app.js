@@ -28,6 +28,8 @@ let cameraSession = 0;
 let frameStyle = 'arch';
 let orientation = 'portrait';
 let cardTheme = 'dusk';
+let cardOrientation = 'landscape';
+let generated = false;
 
 const cropState = {
     card: { scale: 100, x: 0, y: 0 },
@@ -138,19 +140,49 @@ function drawPhoto(x, y, w, h, shape = 'rect', radius = 0) {
 
 function cardPalette() {
     return {
-        grove: { top: '#0B6839', bottom: '#A66A79', line: '#FEE101', edge: '#A66A79' },
-        dusk: { top: '#173E36', bottom: '#395066', line: '#E4D4AA', edge: '#879FBC' },
-        salt: { top: '#527164', bottom: '#7B6758', line: '#FFFBE8', edge: '#E4D4AA' }
+        grove: { top: '#0B6839', bottom: '#A66A79', line: '#FEE101', edge: '#A66A79', surface: '#C9DDC8', surfaceDeep: '#9EBFA7' },
+        dusk: { top: '#173E36', bottom: '#395066', line: '#E4D4AA', edge: '#879FBC', surface: '#B9CAC2', surfaceDeep: '#8CA7A0' },
+        salt: { top: '#527164', bottom: '#7B6758', line: '#FFFBE8', edge: '#E4D4AA', surface: '#D8D1B9', surfaceDeep: '#AFA78D' }
     }[cardTheme];
+}
+
+function drawCardSurface(p) {
+    const surface = ctx.createLinearGradient(0, 236, 1080, 922);
+    surface.addColorStop(0, p.surface);
+    surface.addColorStop(1, p.surfaceDeep);
+    ctx.fillStyle = surface;
+    ctx.fillRect(0, 236, 1080, 686);
+
+    ctx.save();
+    ctx.globalAlpha = .14;
+    ctx.fillStyle = p.top;
+    ctx.beginPath();
+    ctx.arc(-60, 430, 330, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(1145, 690, 305, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = .22;
+    ctx.strokeStyle = p.edge;
+    ctx.lineWidth = 3;
+    for (let x = -720; x < 1320; x += 58) line(x, 236, x + 686, 922, 3);
+
+    ctx.globalAlpha = .46;
+    ctx.fillStyle = p.line;
+    ctx.fillRect(70, 258, 170, 5);
+    ctx.fillRect(840, 258, 170, 5);
+    ctx.restore();
+
 }
 
 function drawCard() {
     const p = cardPalette();
+    const portraitPhoto = cardOrientation === 'portrait';
     canvas.width = 1080;
     canvas.height = 1350;
 
-    ctx.fillStyle = colors.cream;
-    ctx.fillRect(0, 0, 1080, 1350);
+    drawCardSurface(p);
 
     ctx.fillStyle = p.top;
     ctx.fillRect(0, 0, 1080, 236);
@@ -163,7 +195,10 @@ function drawCard() {
     ctx.fillStyle = p.line;
     ctx.fillRect(70, 185, 940, 9);
 
-    const px = 70, py = 285, pw = 940, ph = 565;
+    const px = portraitPhoto ? 275 : 70;
+    const py = portraitPhoto ? 250 : 285;
+    const pw = portraitPhoto ? 530 : 940;
+    const ph = portraitPhoto ? 640 : 565;
     ctx.fillStyle = colors.black;
     ctx.fillRect(px - 10, py - 10, pw + 20, ph + 20);
     drawPhoto(px, py, pw, ph);
@@ -290,6 +325,7 @@ function setFormat(next) {
     $('output-size').textContent = next === 'card'
         ? '1080 × 1350'
         : orientation === 'portrait' ? '1080 × 1350' : '1350 × 1080';
+    syncOutputAvailability();
     draw();
 }
 
@@ -338,12 +374,45 @@ function loadFile(file) {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-function filename() {
-    return format === 'card' ? 'hh-goa-builder-id.png' : 'hh-goa-pfp-frame.png';
+function filename(printable = false) {
+    const base = format === 'card' ? 'hh-goa-builder-id' : 'hh-goa-pfp-frame';
+    return `${base}${printable ? '-print-300dpi' : ''}.png`;
 }
 
 function blob() {
     return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+}
+
+function printableBlob() {
+    const printCanvas = document.createElement('canvas');
+    const scale = 3;
+    printCanvas.width = canvas.width * scale;
+    printCanvas.height = canvas.height * scale;
+    const printContext = printCanvas.getContext('2d');
+    printContext.imageSmoothingEnabled = true;
+    printContext.imageSmoothingQuality = 'high';
+    printContext.drawImage(canvas, 0, 0, printCanvas.width, printCanvas.height);
+    return new Promise(resolve => printCanvas.toBlob(resolve, 'image/png'));
+}
+
+function downloadImage(imageBlob, printable = false) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(imageBlob);
+    a.download = filename(printable);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 500);
+}
+
+function hasRequiredFields() {
+    return Boolean(photo) && (format !== 'card' || ($('name-input').value.trim() && $('role-input').value.trim()));
+}
+
+function syncOutputAvailability() {
+    const ready = generated && hasRequiredFields();
+    ['download-btn', 'print-btn', 'share-btn'].forEach(id => {
+        $(id).disabled = !ready;
+        $(id).classList.toggle('is-ready', ready);
+    });
 }
 
 function setFaceStatus(message, ready = false) {
@@ -584,6 +653,20 @@ function setOrientation(next) {
 
 document.querySelectorAll('.orientation-option').forEach(b => b.addEventListener('click', () => setOrientation(b.dataset.orientation)));
 
+function setCardOrientation(next) {
+    cardOrientation = next;
+    document.querySelectorAll('.card-orientation-option').forEach(option => {
+        const active = option.dataset.cardOrientation === next;
+        option.classList.toggle('active', active);
+        option.setAttribute('aria-checked', active);
+    });
+    if (format === 'card') draw();
+}
+
+document.querySelectorAll('.card-orientation-option').forEach(button => {
+    button.addEventListener('click', () => setCardOrientation(button.dataset.cardOrientation));
+});
+
 document.querySelectorAll('.frame-option').forEach(b => b.addEventListener('click', () => {
     frameStyle = b.dataset.frame;
     document.querySelectorAll('.frame-option').forEach(option => {
@@ -623,25 +706,68 @@ form.addEventListener('submit', e => {
         return;
     }
     draw();
-    $('download-btn').disabled = false;
-    $('share-btn').disabled = false;
-    $('download-btn').classList.add('is-ready');
-    $('share-btn').classList.add('is-ready');
+    generated = true;
+    syncOutputAvailability();
     $('share-note').textContent = 'Ready to make your timeline tropical.';
     $('share-note').classList.remove('error');
 });
 
 $('download-btn').addEventListener('click', async () => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(await blob());
-    a.download = filename();
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 500);
+    downloadImage(await blob());
 });
 
-$('share-btn').addEventListener('click', async () => {
-    const caption = 'I’m framing in Goa for HH Goa 2026 ☼ #FrameInGoa';
-    const file = new File([await blob()], filename(), { type: 'image/png' });
+$('print-btn').addEventListener('click', async () => {
+    downloadImage(await printableBlob(), true);
+    $('share-note').textContent = 'Print-quality PNG saved at 3240 × 4050 pixels.';
+});
+
+let selectedShareTemplate = 0;
+
+function getShareTemplates() {
+    const graphic = format === 'card' ? 'Builder ID' : 'PFP Frame';
+    return [
+        `Made my HH Goa 2026 ${graphic} ☼ See you in Goa. #FrameInGoa #HHGoa2026`,
+        `My HH Goa 2026 ${graphic} is ready. Building, shipping, and bringing the good vibes. ☼ #FrameInGoa`,
+        `Framed for HH Goa 2026 — my ${graphic} is ready for hacker house season. #FrameInGoa #HHGoa2026`
+    ];
+}
+
+function closeShareChooser() {
+    $('share-modal').classList.remove('open');
+    $('share-modal').setAttribute('aria-hidden', 'true');
+}
+
+function openShareChooser() {
+    const templates = getShareTemplates();
+    document.querySelectorAll('.share-template').forEach((button, index) => {
+        const selected = index === selectedShareTemplate;
+        button.textContent = templates[index];
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-checked', String(selected));
+    });
+    $('share-modal').classList.add('open');
+    $('share-modal').setAttribute('aria-hidden', 'false');
+}
+
+$('share-btn').addEventListener('click', openShareChooser);
+$('share-close').addEventListener('click', closeShareChooser);
+$('share-cancel').addEventListener('click', closeShareChooser);
+document.querySelectorAll('.share-template').forEach((button, index) => {
+    button.addEventListener('click', () => {
+        selectedShareTemplate = index;
+        document.querySelectorAll('.share-template').forEach((option, optionIndex) => {
+            const selected = optionIndex === index;
+            option.classList.toggle('active', selected);
+            option.setAttribute('aria-checked', String(selected));
+        });
+    });
+});
+
+$('share-confirm').addEventListener('click', async () => {
+    const caption = getShareTemplates()[selectedShareTemplate];
+    closeShareChooser();
+    const image = await printableBlob();
+    const file = new File([image], filename(true), { type: 'image/png' });
 
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
         try {
@@ -652,8 +778,9 @@ $('share-btn').addEventListener('click', async () => {
         }
     }
 
+    downloadImage(image, true);
     window.open('https://x.com/intent/post?text=' + encodeURIComponent(caption), '_blank', 'noopener');
-    $('share-note').textContent = 'Your image is ready — download it, then attach it to your pre-filled X post.';
+    $('share-note').textContent = 'Your print-quality image is downloaded — attach it to your pre-filled X post.';
 });
 
 document.fonts.ready.then(() => {
@@ -671,7 +798,7 @@ canvas.addEventListener("pointerup", stopDragging); canvas.addEventListener("poi
 document.getElementById('crop-reset').addEventListener('click',()=>{ cropState[format]={scale:100,x:0,y:0}; syncCropInputs(); draw(); });
 document.querySelectorAll("[data-nudge]").forEach(button=>button.addEventListener("click",()=>{ const c=activeCrop(), step=8; if(button.dataset.nudge==="left") c.x-=step; if(button.dataset.nudge==="right") c.x+=step; if(button.dataset.nudge==="up") c.y-=step; if(button.dataset.nudge==="down") c.y+=step; c.x=clampCrop(c.x); c.y=clampCrop(c.y); syncCropInputs(); draw(); }));
 
-document.getElementById("remove-image").addEventListener("click",()=>{ photo=null; photoInput.value=""; cropState.card={scale:100,x:0,y:0}; cropState.frame={scale:100,x:0,y:0}; syncCropInputs(); document.getElementById("upload-label").textContent="UPLOAD A PHOTO"; document.getElementById("drop-zone").classList.remove("loaded"); document.getElementById("remove-image").hidden=true; setCropAvailability(false); document.getElementById("download-btn").disabled=true; document.getElementById("share-btn").disabled=true; document.getElementById("download-btn").classList.remove("is-ready"); document.getElementById("share-btn").classList.remove("is-ready"); document.getElementById("share-note").textContent="Image removed. Start again when you are ready."; draw(); });
+document.getElementById("remove-image").addEventListener("click",()=>{ photo=null; generated=false; photoInput.value=""; cropState.card={scale:100,x:0,y:0}; cropState.frame={scale:100,x:0,y:0}; syncCropInputs(); document.getElementById("upload-label").textContent="UPLOAD A PHOTO"; document.getElementById("drop-zone").classList.remove("loaded"); document.getElementById("remove-image").hidden=true; setCropAvailability(false); syncOutputAvailability(); document.getElementById("share-note").textContent="Image removed. Start again when you are ready."; draw(); });
 
 let lastHapticAt = 0;
 document.querySelectorAll('input[type="range"]').forEach(slider => slider.addEventListener('input', () => {
