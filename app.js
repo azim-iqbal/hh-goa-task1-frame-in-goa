@@ -738,6 +738,18 @@ function closeShareChooser() {
     $('share-modal').setAttribute('aria-hidden', 'true');
 }
 
+function showShareStep(stepId) {
+    document.querySelectorAll('.share-step').forEach(step => {
+        if (step.id === stepId) {
+            step.hidden = false;
+            requestAnimationFrame(() => step.classList.add('step-visible'));
+        } else {
+            step.classList.remove('step-visible');
+            step.hidden = true;
+        }
+    });
+}
+
 function openShareChooser() {
     const templates = getShareTemplates();
     document.querySelectorAll('.share-template').forEach((button, index) => {
@@ -746,6 +758,9 @@ function openShareChooser() {
         button.classList.toggle('active', selected);
         button.setAttribute('aria-checked', String(selected));
     });
+    $('share-title').textContent = 'PICK YOUR POST';
+    $('share-confirm-label').textContent = isMobileDevice() ? 'CONTINUE' : 'CONTINUE TO X';
+    showShareStep('share-step-caption');
     $('share-modal').classList.add('open');
     $('share-modal').setAttribute('aria-hidden', 'false');
 }
@@ -764,24 +779,122 @@ document.querySelectorAll('.share-template').forEach((button, index) => {
     });
 });
 
-$('share-confirm').addEventListener('click', async () => {
-    const caption = getShareTemplates()[selectedShareTemplate];
-    closeShareChooser();
-    const image = await printableBlob();
+function isMobileDevice() {
+    const ua = navigator.userAgent || '';
+    if (/Android|iPhone|iPad|iPod/i.test(ua)) return true;
+    // iPadOS 13+ reports as "Mac" but has multi-touch — treat as mobile.
+    if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) return true;
+    return false;
+}
+
+async function copyImageToClipboard(imageBlob) {
+    if (!navigator.clipboard || typeof window.ClipboardItem === 'undefined') return false;
+    try {
+        await navigator.clipboard.write([new ClipboardItem({ [imageBlob.type]: imageBlob })]);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+let toastTimer = null;
+function showToast(message) {
+    const toast = $('clipboard-toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 4200);
+}
+
+async function shareOnMobile(caption, image) {
     const file = new File([image], filename(true), { type: 'image/png' });
 
+    // Web Share API: hands the image + caption straight to the OS share
+    // sheet, with the image already attached. X shows up as a one-tap
+    // option there if it's installed — no manual attach needed.
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
         try {
             await navigator.share({ files: [file], text: caption, title: 'HH Goa 2026' });
-            return;
+            return true;
         } catch (e) {
-            if (e.name === 'AbortError') return;
+            if (e.name === 'AbortError') return true; // person cancelled the sheet — don't fall back
         }
     }
+    return false;
+}
 
+async function runDesktopShare(caption) {
+    const webIntentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(caption);
+    // Opened synchronously (before any await) so it isn't treated as a
+    // blocked popup. Lands on compose if logged in, prompts login otherwise.
+    window.open(webIntentUrl, '_blank', 'noopener');
+
+    const image = await printableBlob();
     downloadImage(image, true);
-    window.open('https://x.com/intent/post?text=' + encodeURIComponent(caption), '_blank', 'noopener');
-    $('share-note').textContent = 'Your print-quality image is downloaded — attach it to your pre-filled X post.';
+
+    const copied = await copyImageToClipboard(image);
+    if (copied) {
+        showToast('Image copied to clipboard — paste it into your X post (Ctrl+V / ⌘V).');
+        $('share-note').textContent = 'X opened in a new tab — paste the copied image right in, no download needed.';
+    } else {
+        $('share-note').textContent = 'X opened in a new tab, and your print-quality image is downloaded — attach it there.';
+    }
+}
+
+async function runMobileAppShare(caption) {
+    const webIntentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(caption);
+    window.open(webIntentUrl, '_blank', 'noopener');
+
+    const image = await printableBlob();
+    const shared = await shareOnMobile(caption, image);
+    if (shared) {
+        $('share-note').textContent = 'Share sheet opened, and X is ready in a new tab too — use whichever is easier.';
+        return;
+    }
+    // Web Share unsupported on this device — fall back to a manual attach.
+    downloadImage(image, true);
+    $('share-note').textContent = 'X opened in a new tab, and your print-quality image is downloaded — attach it to your pre-filled post.';
+}
+
+async function runMobileBrowserShare(caption) {
+    const webIntentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(caption);
+    window.open(webIntentUrl, '_blank', 'noopener');
+
+    const image = await printableBlob();
+    downloadImage(image, true);
+    $('share-note').textContent = 'X opened in a new tab, and your print-quality image is downloaded — attach it to your pre-filled post.';
+}
+
+$('share-confirm').addEventListener('click', async () => {
+    const caption = getShareTemplates()[selectedShareTemplate];
+
+    if (isMobileDevice()) {
+        // Let the person choose how they'd rather share before doing anything.
+        $('share-title').textContent = 'SHARE TO X';
+        showShareStep('share-step-method');
+        return;
+    }
+
+    closeShareChooser();
+    await runDesktopShare(caption);
+});
+
+$('share-method-back').addEventListener('click', () => {
+    $('share-title').textContent = 'PICK YOUR POST';
+    showShareStep('share-step-caption');
+});
+
+$('share-via-app').addEventListener('click', async () => {
+    const caption = getShareTemplates()[selectedShareTemplate];
+    closeShareChooser();
+    await runMobileAppShare(caption);
+});
+
+$('share-via-browser').addEventListener('click', async () => {
+    const caption = getShareTemplates()[selectedShareTemplate];
+    closeShareChooser();
+    await runMobileBrowserShare(caption);
 });
 
 document.fonts.ready.then(() => {

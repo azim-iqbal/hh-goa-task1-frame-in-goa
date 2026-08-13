@@ -59,8 +59,32 @@
       <div class="camera-card"><div class="camera-top"><span>HH GOA / LIVE PORTRAIT</span><button id="camera-close" type="button" aria-label="Close camera">×</button></div><div class="camera-stage"><video id="camera-video" autoplay playsinline muted></video><div class="camera-frame"><span></span><span></span><span></span><span></span></div><p id="camera-status" aria-live="polite">FINDING YOUR FACE…</p></div><div class="camera-bottom"><button id="camera-cancel" type="button" class="camera-secondary">CANCEL</button><button id="camera-flip" type="button" class="camera-flip" aria-label="Switch camera"><span class="flip-lens"><i></i></span></button><button id="capture-btn" type="button" class="capture-btn" aria-label="Capture photo" disabled><i></i></button><span class="camera-hint">ALIGN FACE TO CAPTURE</span></div></div>
     </section>
     <section class="share-modal" id="share-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="share-title">
-      <div class="share-card"><div class="share-top"><div><span class="eyebrow">HH GOA 2026</span><h3 id="share-title">PICK YOUR POST</h3></div><button id="share-close" type="button" aria-label="Close sharing options">×</button></div><p>Choose the caption that feels most like you. Your graphic stays full-quality.</p><div class="share-templates" role="radiogroup" aria-label="Choose a post caption"><button class="share-template" type="button" role="radio" aria-checked="false">Made my HH Goa 2026 Builder ID ☼ See you in Goa. <b>#FrameInGoa #HHGoa2026</b></button><button class="share-template" type="button" role="radio" aria-checked="false">My HH Goa 2026 identity is ready. Building, shipping, and bringing the good vibes. ☼ <b>#FrameInGoa</b></button><button class="share-template" type="button" role="radio" aria-checked="false">Framed for HH Goa 2026 — one step closer to hacker house season. <b>#FrameInGoa #HHGoa2026</b></button></div><div class="share-actions"><button id="share-cancel" class="share-cancel" type="button">CANCEL</button><button id="share-confirm" class="share-confirm" type="button">CONTINUE TO X <span>↗</span></button></div></div>
+      <div class="share-card">
+        <div class="share-top"><div><span class="eyebrow">HH GOA 2026</span><h3 id="share-title">PICK YOUR POST</h3></div><button id="share-close" type="button" aria-label="Close sharing options">×</button></div>
+
+        <div class="share-step" id="share-step-caption">
+          <p>Choose the caption that feels most like you. Your graphic stays full-quality.</p>
+          <div class="share-templates" role="radiogroup" aria-label="Choose a post caption"><button class="share-template" type="button" role="radio" aria-checked="false">Made my HH Goa 2026 Builder ID ☼ See you in Goa. <b>#FrameInGoa #HHGoa2026</b></button><button class="share-template" type="button" role="radio" aria-checked="false">My HH Goa 2026 identity is ready. Building, shipping, and bringing the good vibes. ☼ <b>#FrameInGoa</b></button><button class="share-template" type="button" role="radio" aria-checked="false">Framed for HH Goa 2026 — one step closer to hacker house season. <b>#FrameInGoa #HHGoa2026</b></button></div>
+          <div class="share-actions"><button id="share-cancel" class="share-cancel" type="button">CANCEL</button><button id="share-confirm" class="share-confirm" type="button"><span id="share-confirm-label">CONTINUE TO X</span> <span>↗</span></button></div>
+        </div>
+
+        <div class="share-step" id="share-step-method" hidden>
+          <p>How would you like to post to X?</p>
+          <div class="share-method-grid">
+            <button class="share-method-option app" id="share-via-app" type="button">
+              <span class="method-icon" aria-hidden="true">⤴</span>
+              <span class="method-copy"><b>SHARE VIA APPS</b><small>Opens your phone's share sheet — pick X, image attaches automatically</small></span>
+            </button>
+            <button class="share-method-option browser" id="share-via-browser" type="button">
+              <span class="method-icon" aria-hidden="true">⊞</span>
+              <span class="method-copy"><b>OPEN IN BROWSER</b><small>Compose on x.com with your caption pre-filled</small></span>
+            </button>
+          </div>
+          <button id="share-method-back" class="share-back" type="button">← Back to captions</button>
+        </div>
+      </div>
     </section>
+    <div class="clipboard-toast" id="clipboard-toast" role="status" aria-live="polite"></div>
     <script src="app.js"></script>
   </body>
 </html>
